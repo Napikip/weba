@@ -86,6 +86,7 @@ int main(void) {
 
     if (init_socket(&server)) {
         fprintf(stderr, "Failed to start server\n");
+        curl_global_cleanup();
         return 1;
     }
 
