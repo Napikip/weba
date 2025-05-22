@@ -64,10 +64,15 @@ static void handle_request(int client_fd) {
         size_t len = end ? (size_t)(end - param) : strlen(param);
         len = len > 511 ? 511 : len;
 
-        char *dec = curl_easy_unescape(NULL, param, len, NULL);
-        if (dec) {
+        CURL *curl=curl_easy_init();
+        if (curl) {
+            char *dec = NULL;
+            dec= curl_easy_unespace(curl,param, len, NULL);
+            if (dec) {
             snprintf(content, sizeof(content), "%.511s", dec);
             curl_free(dec);
+        }
+        curl_easy_cleanup(curl);
         }
     }
 
@@ -76,6 +81,7 @@ static void handle_request(int client_fd) {
 }
 
 int main(void) {
+    curl_global_init(CURL_GLOBAL_ALL);
     struct web_server server;
 
     if (init_socket(&server)) {
@@ -92,5 +98,6 @@ int main(void) {
     }
 
     close(server.fd);
+    curl_global_cleanup();
     return 0;
 }
