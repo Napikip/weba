@@ -41,8 +41,10 @@ static void format_response(int fd, const char *msg) {
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n\r\n"
         "<html><body>"
+        "<h2>Кузнецов Кирилл Евгеньевич</h2>"
+        "<h3>ККСО-26-24, 1 курс</h3>"
         "<div style='margin:20px;padding:20px;border:1px solid #eee;'>"
-        "%s"
+        "Полученное сообщение: %s"  // Добавлены студенческие данные
         "</div>"
         "<img src='https://www.mirea.ru/upload/medialibrary/c1a/MIREA_Gerb_Colour.jpg' width=200>"
         "</body></html>";
