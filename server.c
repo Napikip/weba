@@ -1,106 +1,75 @@
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <curl/curl.h>
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
+#include <ctype.h>
 
-#define BACKLOG 5
-#define REQ_BUF 2048
-#define WEB_PORT 8080
+#define SERVER_PORT 8080
+#define BUFFER_SIZE 2048
+#define MAX_MSG 256
 
-struct web_server {
-    int fd;
-    struct sockaddr_in addr_info;
-};
-
-static int init_socket(struct web_server *srv) {
-    srv->fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (srv->fd == -1) return -1;
-
-    srv->addr_info.sin_family = AF_INET;
-    srv->addr_info.sin_port = htons(WEB_PORT);
-    srv->addr_info.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(srv->fd, (struct sockaddr*)&srv->addr_info, sizeof(srv->addr_info)) {
-        close(srv->fd);
-        return -1;
-    }
-
-    if (listen(srv->fd, BACKLOG)) {
-        close(srv->fd);
-        return -1;
-    }
-    return 0;
-}
-
-static void format_response(int fd, const char *msg) {
-    char out[REQ_BUF];
-    const char *templ = 
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/html\r\n\r\n"
-        "<html><body>"
-        "<h2>Кузнецов Кирилл Евгеньевич</h2>"
-        "<h3>ККСО-26-24, 1 курс</h3>"
-        "<div style='margin:20px;padding:20px;border:1px solid #eee;'>"
-        "Полученное сообщение: %s"  // Добавлены студенческие данные
-        "</div>"
-        "<img src='https://www.mirea.ru/upload/medialibrary/c1a/MIREA_Gerb_Colour.jpg' width=200>"
-        "</body></html>";
-
-    snprintf(out, REQ_BUF, templ, msg);
-    send(fd, out, strlen(out), 0);
-}
-
-static void handle_request(int client_fd) {
-    char buf[REQ_BUF] = {0};
-    recv(client_fd, buf, REQ_BUF-1, 0);
-
-    char *param = strstr(buf, "message=");
-    char content[512] = "No message received";
-
-    if (param) {
-        param += 8;
-        char *end = strpbrk(param, " &");
-        size_t len = end ? (size_t)(end - param) : strlen(param);
-        len = len > 511 ? 511 : len;
-
-        CURL *curl=curl_easy_init();
-        if (curl) {
-            char *dec = NULL;
-            dec= curl_easy_unespace(curl,param, len, NULL);
-            if (dec) {
-            snprintf(content, sizeof(content), "%.511s", dec);
-            curl_free(dec);
-        }
-        curl_easy_cleanup(curl);
+void decode_url(char* output, const char* input) {
+    char high, low;
+    while (*input) {
+        if (*input == '%' && (high = input[1]) && (low = input[2]) && isxdigit(high) && isxdigit(low)) {
+            high = high >= 'a' ? high - 32 : high;
+            high = high >= 'A' ? high - 55 : high - 48;
+            low = low >= 'a' ? low - 32 : low;
+            low = low >= 'A' ? low - 55 : low - 48;
+            *output++ = (high << 4) | low;
+            input += 3;
+        } else {
+            *output++ = *input++;
         }
     }
-
-    format_response(client_fd, content);
-    close(client_fd);
+    *output = 0;
 }
 
-int main(void) {
-    curl_global_init(CURL_GLOBAL_ALL);
-    struct web_server server;
+void setup_server() {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    
+    struct sockaddr_in addr = {
+        .sin_family = AF_INET,
+        .sin_port = htons(SERVER_PORT),
+        .sin_addr.s_addr = INADDR_ANY
+    };
+    
+    bind(sock, (struct sockaddr*)&addr, sizeof(addr));
+    listen(sock, 5);
+    printf("Server listening on port %d\n", SERVER_PORT);
 
-    if (init_socket(&server)) {
-        fprintf(stderr, "Failed to start server\n");
-        curl_global_cleanup();
-        return 1;
+    while(1) {
+        int client = accept(sock, 0, 0);
+        
+        char data[BUFFER_SIZE];
+        read(client, data, BUFFER_SIZE);
+        
+        char* param_pos = strstr(data, "message=");
+        char encoded[MAX_MSG] = {0};
+        char decoded[MAX_MSG] = {0};
+
+        if (param_pos) {
+            sscanf(param_pos + 8, "%255[^& \n]", encoded);
+            decode_url(decoded, encoded);
+        }
+
+        char page[BUFFER_SIZE];
+        snprintf(page, BUFFER_SIZE,
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/html; charset=utf-8\r\n\r\n"
+            "<!DOCTYPE html><html><head><title>Server</title></head>"
+            "<body><div>%s</div>"
+            "<img src='https://www.mirea.ru/upload/medialibrary/c1a/MIREA_Gerb_Colour.jpg' width='300'>"
+            "</body></html>", 
+            decoded);
+            
+        write(client, page, strlen(page));
+        close(client);
     }
+}
 
-    printf("Listening on port %d...\n", WEB_PORT);
-
-    while (1) {
-        int client = accept(server.fd, NULL, NULL);
-        if (client == -1) continue;
-        handle_request(client);
-    }
-
-    close(server.fd);
-    curl_global_cleanup();
+int main() {
+    setup_server();
     return 0;
 }
