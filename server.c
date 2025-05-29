@@ -8,7 +8,7 @@
 #define BUFFER_SIZE 2048
 #define MAX_MESSAGE_LENGTH 256
 
-// Функция для декодирования URL (преобразует %XX в символ)
+// Функция для декодирования URL
 void url_decode(char* output, const char* input) {
     char high, low;
     while (*input) {
@@ -26,7 +26,7 @@ void url_decode(char* output, const char* input) {
     *output = 0;
 }
 
-// Основной сервер: принимает запросы и отвечает HTML-страницей
+// Основной сервер
 void start_http_server() {
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     
