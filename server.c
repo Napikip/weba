@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -7,9 +6,10 @@
 
 #define SERVER_PORT 8080
 #define BUFFER_SIZE 2048
-#define MAX_MSG 256
+#define MAX_MESSAGE_LENGTH 256
 
-void decode_url(char* output, const char* input) {
+// Функция для декодирования URL (преобразует %XX в символ)
+void url_decode(char* output, const char* input) {
     char high, low;
     while (*input) {
         if (*input == '%' && (high = input[1]) && (low = input[2]) && isxdigit(high) && isxdigit(low)) {
@@ -26,50 +26,51 @@ void decode_url(char* output, const char* input) {
     *output = 0;
 }
 
-void setup_server() {
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+// Основной сервер: принимает запросы и отвечает HTML-страницей
+void start_http_server() {
+    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     
-    struct sockaddr_in addr = {
+    struct sockaddr_in server_address = {
         .sin_family = AF_INET,
         .sin_port = htons(SERVER_PORT),
         .sin_addr.s_addr = INADDR_ANY
     };
     
-    bind(sock, (struct sockaddr*)&addr, sizeof(addr));
-    listen(sock, 5);
+    bind(server_socket, (struct sockaddr*)&server_address, sizeof(server_address));
+    listen(server_socket, 5);
     printf("Server listening on port %d\n", SERVER_PORT);
 
-    while(1) {
-        int client = accept(sock, 0, 0);
+    while (1) {
+        int client_socket = accept(server_socket, 0, 0);
         
-        char data[BUFFER_SIZE];
-        read(client, data, BUFFER_SIZE);
+        char request_buffer[BUFFER_SIZE];
+        read(client_socket, request_buffer, BUFFER_SIZE);
         
-        char* param_pos = strstr(data, "message=");
-        char encoded[MAX_MSG] = {0};
-        char decoded[MAX_MSG] = {0};
+        char* message_position = strstr(request_buffer, "message=");
+        char encoded_message[MAX_MESSAGE_LENGTH] = {0};
+        char decoded_message[MAX_MESSAGE_LENGTH] = {0};
 
-        if (param_pos) {
-            sscanf(param_pos + 8, "%255[^& \n]", encoded);
-            decode_url(decoded, encoded);
+        if (message_position) {
+            sscanf(message_position + 8, "%255[^& \n]", encoded_message);
+            url_decode(decoded_message, encoded_message);
         }
 
-        char page[BUFFER_SIZE];
-        snprintf(page, BUFFER_SIZE,
+        char html_response[BUFFER_SIZE];
+        snprintf(html_response, BUFFER_SIZE,
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: text/html; charset=utf-8\r\n\r\n"
-            "<!DOCTYPE html><html><head><title>Server</title></head>"
+            "<!DOCTYPE html><html><head><title>Simple Server</title></head>"
             "<body><div>%s</div>"
             "<img src='https://www.mirea.ru/upload/medialibrary/c1a/MIREA_Gerb_Colour.jpg' width='300'>"
             "</body></html>", 
-            decoded);
+            decoded_message);
             
-        write(client, page, strlen(page));
-        close(client);
+        write(client_socket, html_response, strlen(html_response));
+        close(client_socket);
     }
 }
 
 int main() {
-    setup_server();
+    start_http_server();
     return 0;
 }
